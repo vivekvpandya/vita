@@ -58,7 +58,9 @@ int main(int argc, char **argv)
 	News Test;
 	int count = atoi(argv[1]);
 	//printf("Count %d",count);
-	news = (News *)malloc(sizeof(News)*(count+1));
+	//news = (News *)malloc(sizeof(News)*(count));
+	char *buffer = (char *)malloc(sizeof(char)*(count*630)); // 30 + 100 + 500
+	int p = 0;
     for (int i = 1 ; i <= count ; i++ ) {
 		char * line = NULL;
    	 	size_t len = 0;
@@ -81,18 +83,49 @@ int main(int argc, char **argv)
 
 		    if (j == 0) {
 		        //news[i]->timeStamp = (char *)malloc(sizeof(char)*read);
-		        strncpy(news[i].timeStamp,line,read);
-		        news[i].timeStamp[read] = '\0';
+		        //strncpy(news[i].timeStamp,line,read);
+		        //news[i].timeStamp[read] = '\0';
+				strncpy(&(buffer[p]),line,read);
+				if (read < 30) {
+					int k = p + read;
+					for (; k < 30 ; k++) {
+						buffer[k] = '\0';					
+					} 
+				} else {
+					buffer[29] = '\0';				
+				}
 		        j++;
+				p = p+ 30;
 		    } else if ( j ==  1) {
 		        //news[i]->title = (char *)malloc(sizeof(char)*read);
-		        strncpy(news[i].title,line,read);
-		        news[i].title[read] = '\0';
+		        //strncpy(news[i].title,line,read);
+		        //news[i].title[read] = '\0';
+				strncpy(&(buffer[p]),line,read);
+				if (read < 100) {
+					int k = p + read;
+					for (; k < 100 ; k++) {
+						buffer[k] = '\0';					
+					} 
+				} else {
+					buffer[99] = '\0';				
+				}
 		        j++;
+				p = p+ 100;
 		    } else {
 		       	//news[i]->details = (char *)malloc(sizeof(char)*read);
-		        strncpy(news[i].details,line,read);
-		        news[i].details[read] = '\0';
+		        //strncpy(news[i].details,line,read);
+		        //news[i].details[read] = '\0';
+				strncpy(&(buffer[p]),line,read);
+				if (read < 500) {
+					int k = p + read;
+					for (; k < 500 ; k++) {
+						buffer[k] = '\0';					
+					} 
+				} else {
+					buffer[99] = '\0';				
+				}
+		        j++;
+				p = p + 500;
 		        j = 0;
 		    }  
 			    
@@ -101,8 +134,12 @@ int main(int argc, char **argv)
 		if (line)
 		    free(line);
     }
-
-	
+/*
+	int limit = count * 630 -1; 
+	for (int i = 0 ; i < limit; i++) {
+		printf("%c", buffer[i]);
+	} 
+	*/
     //printf("Time Stamp : %s\n",news1.timeStamp);
     //printf("Title : %s\n",news1.title);
     //printf("Details : %s\n",news1.details);
@@ -128,7 +165,7 @@ int main(int argc, char **argv)
     //time_t loctime = mktime(&time);
     //printf ( "Current local time and date: %s", asctime (&time) );
 
-
+	
     const int tag = 0;
 	int size, rank;
 
@@ -177,7 +214,14 @@ int main(int argc, char **argv)
 
 	//get rank of current process
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
+	/*
+	for (int i = 1 ; i <= count ; i++) {
+				printf("News item : %d \n", i);
+				printf("News TimeStamp: %s \n", news[i].timeStamp);
+				printf("News Title: %s \n", news[i].title);
+				printf("News Details: %s \n", news[i].details);
+	}
+	MPI_Barrier(MPI_COMM_WORLD);
 	/*
 	if(rank == 1) {
 		// News send;
@@ -195,25 +239,46 @@ int main(int argc, char **argv)
 		MPI_Recv(&recv, 1, mpi_test_type, src, tag, MPI_COMM_WORLD, &status);
 		printf("\nRank %d received \n %s \n %s \n %s \n", rank, recv.timeStamp,recv.title,recv.details);
 	}
+	
 	*/
+	//News *recvNews = (News *)malloc(sizeof(News )*(count));
+	char *recvBuffer = (char *)malloc(sizeof(char) * (count*630));
 	
-	News *recvNews = (News *)malloc(sizeof(News )*(count+1));
-	
-	
-	int status = MPI_Alltoall(news,1,mpi_test_type,recvNews,1,mpi_test_type,MPI_COMM_WORLD);	
+	int status = MPI_Alltoall(buffer,630,MPI_CHAR,recvBuffer,630,MPI_CHAR,MPI_COMM_WORLD);	
 	
 	if(status != 0) {
 		printf("MPI_Alltoall failed with status %d\n", status);
 		exit(EXIT_FAILURE);	
 	}	
+	MPI_Barrier(MPI_COMM_WORLD);
+	printf(" \n \n \n");
 
+	if (rank == 1) {
+	int limit = count * 630 -1; 
+	for (int i = 0 ; i < limit; i++) {
+		printf("%c", recvBuffer[i]);
+	} 
+		
+	} 
+	/*
+	if (rank == 0) {
 	for (int i = 1 ; i <= size ; i++) {
-				printf("News item : %d \n", i);
-				printf("News TimeStamp: %s \n", recvNews[i].timeStamp);
-				printf("News Title: %s \n", recvNews[i].title);
-				printf("News Details: %s \n", recvNews[i].details);
+				printf("News item : %d rank %d\n", i , rank);
+				printf("News TimeStamp: %s rank %d\n", recvNews[i].timeStamp,rank);
+				printf("News Title: %s rank %d\n", recvNews[i].title,rank);
+				printf("News Details: %s rank %d \n", recvNews[i].details,rank);
 	}
-	//dumpRecvNews(rank,recvNews,size);	
+	}
+	else if(rank == 1) {
+	for (int i = 1 ; i <= size ; i++) {
+				printf("News item : %d rank %d\n", i , rank);
+				printf("News TimeStamp: %s rank %d\n", recvNews[i].timeStamp,rank);
+				printf("News Title: %s rank %d\n", recvNews[i].title,rank);
+				printf("News Details: %s rank %d \n", recvNews[i].details,rank);
+	}
+	}
+	*/
+	//dumpRecvNews(,recvNews,size);	
 
 	
 	//free the derived data type
