@@ -306,15 +306,22 @@ int main(int argc, char **argv)
 	News* newsArray = getNewsArray(recvBuffer,count);
 	
 
-	if (rank == 1) {
-	for (int i = 0 ; i < size ; i++) {
-				printf("News item : %d rank %d\n", i , rank);
-				printf("News TimeStamp: %s rank %d\n", newsArray[i].timeStamp,rank);
-				printf("News Title: %s rank %d\n", newsArray[i].title,rank);
-				printf("News Details: %s rank %d \n", newsArray[i].details,rank);
+	for( int my_rank = 0; my_rank < count; my_rank++) {
+		if( my_rank == rank ) {
+			for (int i = 0 ; i < size ; i++) {
+						printf("News item : %d rank %d\n", i , rank);
+						printf("News TimeStamp: %s rank %d\n", newsArray[i].timeStamp,rank);
+						printf("News Title: %s rank %d\n", newsArray[i].title,rank);
+						printf("News Details: %s rank %d \n", newsArray[i].details,rank);
+			}
+			News latestNews = findLatest(newsArray,count);
+			printf("Latest news : \n");
+			printf("News TimeStamp: %s\n", latestNews.timeStamp);
+			printf("News Title: %s\n", latestNews.title);
+			printf("News Details: %s\n", latestNews.details);
+		}
 	}
-	}
-
+	
 	/*
 	else if(rank == 1) {
 	for (int i = 1 ; i <= size ; i++) {
