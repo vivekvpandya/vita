@@ -208,10 +208,16 @@ int main(int argc, char **argv)
 
 	
     const int tag = 0;
-	int size, rank;
+	int world_size, world_rank;
+	int rep_size, rep_rank;
+	int *process_rank;
+
+	MPI_Group world_group, new_group;
+	MPI_Comm rep_comm,world_comm;
 
 	MPI_Init(&argc, &argv);
-	MPI_Comm_size(MPI_COMM_WORLD, &size);
+	MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+	MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
 
 	//number of items inside structure Test
 	const int nitems = 3;
@@ -254,7 +260,33 @@ int main(int argc, char **argv)
 	MPI_Type_commit(&mpi_test_type);
 
 	//get rank of current process
-	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+	//MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+
+	//Code for the creation of REPORTER COMM goes here.
+	
+	process_rank = 	(int*)malloc(sizeof(int) * (world_size - 1));
+
+	for(int i = 1 ; i < world_size ; i++){
+		process_rank[i] = i;
+	}
+
+
+	MPI_Comm_dup(MPI_COMM_WORLD, &world_comm);
+	MPI_Comm_group(world_comm, &world_group);
+	MPI_Group_incl(world_group, (world_size - 1), process_rank, &new_group);
+	MPI_Comm_create(world_comm, new_group, &rep_comm);
+
+	//printf("%d\n",error);
+
+	//Get the size of the Comm REPORTER.
+
+	if(world_rank == 0){
+		//Do editor's task
+	}else{
+		MPI_Comm_size(rep_comm, &rep_size);
+		MPI_Comm_rank(rep_comm, &rep_rank);
+
+
 	/*
 	for (int i = 1 ; i <= count ; i++) {
 				printf("News item : %d \n", i);
@@ -285,13 +317,13 @@ int main(int argc, char **argv)
 	//News *recvNews = (News *)malloc(sizeof(News )*(count));
 	char *recvBuffer = (char *)malloc(sizeof(char) * (count*630));
 	
-	int status = MPI_Alltoall(buffer,630,MPI_CHAR,recvBuffer,630,MPI_CHAR,MPI_COMM_WORLD);	
+	int status = MPI_Alltoall(buffer,630,MPI_CHAR,recvBuffer,630,MPI_CHAR,rep_comm);	
 	
 	if(status != 0) {
 		printf("MPI_Alltoall failed with status %d\n", status);
 		exit(EXIT_FAILURE);	
 	}	
-	MPI_Barrier(MPI_COMM_WORLD);
+	MPI_Barrier(rep_comm);
 	printf(" \n \n \n");
 	/*
 	if (rank == 1) {
@@ -307,7 +339,7 @@ int main(int argc, char **argv)
 	
 
 	for( int my_rank = 0; my_rank < count; my_rank++) {
-		if( my_rank == rank ) {
+		if( my_rank == rep_rank ) {
 			/*for (int i = 0 ; i < size ; i++) {
 						printf("News item : %d rank %d\n", i , rank);
 						printf("News TimeStamp: %s rank %d\n", newsArray[i].timeStamp,rank);
@@ -336,6 +368,14 @@ int main(int argc, char **argv)
 
 	
 	//free the derived data type
+	
+
+	}
+
+
+	
+
+	
 	MPI_Type_free(&mpi_test_type);
 	MPI_Finalize();
 	
