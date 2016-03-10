@@ -1,0 +1,418 @@
+#define _GNU_SOURCE
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+#include <mpi.h>
+#include <stddef.h>
+#include <unistd.h>
+
+typedef struct news {
+    char timeStamp[30];
+    char title[100];
+    char details[500];
+} News ;
+
+
+News** getNewsArray(char *recvBuffer, int size, int repo_count, int proc_size) {
+	News **newsArray = (News **)malloc(sizeof(News *) * proc_size);
+	
+	//int readOn = 1;
+	int t = 0;
+	
+	for ( ; t < proc_size;  t++) {
+		newsArray[t] = (News *)malloc(sizeof(News) * repo_count);
+		//readOn = 1;
+		int p = 0;
+		int j = 0;
+		int s = 0;
+		for (; s <  repo_count ; s++) { 
+			//while(readOn) {
+			
+				if (j == 0) {
+		 			for( int k = 0; k <29 ; k++) {
+					//printf("%c",recvBuffer[p + k]);
+					newsArray[t][s].timeStamp[k] = recvBuffer[p + k];			
+					}
+					newsArray[t][s].timeStamp[29] = '\0';
+					p = p + 30;
+					j++;		
+				} else if (j == 1) {
+					for( int k = 0; k <99 ; k++) {
+					//printf("%c",recvBuffer[p + k]);
+					newsArray[t][s].title[k] = recvBuffer[p + k];			
+					}
+					newsArray[t][s].title[99] = '\0';
+					p = p + 100;
+					j++;
+				} else {
+					for( int k = 0; k <499 ; k++) {
+					//printf("%c",recvBuffer[p + k]);
+					newsArray[t][s].details[k] = recvBuffer[p + k];			
+					}
+					newsArray[t][s].details[499] = '\0';
+					p = p + 500;
+					j = 0;
+					//readOn = 0;
+				}
+			//}	
+		}
+	}
+		
+		
+	
+	return newsArray;
+	
+}
+
+News findLatest(News *news, int size) { 
+
+    //printf( "Current local time and date: %s", asctime(&time) );
+	News latest = news[0];
+	for ( int i = 1; i < size ; i++ ) {
+		struct tm time1, time2;
+		News newsToCompare = news[i];
+    	strptime(latest.timeStamp,"%a %b %e %T %Z %Y",&time1);
+		strptime(newsToCompare.timeStamp,"%a %b %e %T %Z %Y",&time2);
+    	time_t time1t = mktime(&time1);
+		time_t time2t = mktime(&time2);
+		double seconds = difftime(time1t, time2t);
+		if (seconds < 0) {
+			latest = newsToCompare;		
+		}
+	}
+	return latest; 
+}
+
+void dumpRecvNews( int rank, News *news, int size) {
+	for (int p = 0 ; p < size; p++) {
+		if (rank == p) {
+			printf("Process %d dump starts ----------------------------- \n\n",p);
+			for (int i = 1 ; i <= size ; i++) {
+				printf("News item : %d \n", i);
+				printf("News TimeStamp: %s \n", news[i].timeStamp);
+				printf("News Title: %s \n", news[i].title);
+				printf("News Details: %s \n", news[i].details);
+			}
+			printf("Process %d dump ends ------------------------------ \n\n",p);
+			//MPI_Barrier(MPI_COMM_WORLD);
+			usleep(10000);
+		}
+	}
+}
+
+int main(int argc, char **argv) {	
+	const int tag = 0;
+	int world_size, world_rank;
+	int rep_size, rep_rank;
+	int *process_rank;
+
+	MPI_Group world_group, new_group;
+	MPI_Comm rep_comm,world_comm;
+
+	MPI_Init(&argc, &argv);
+	MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+	MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+	
+	int repo_count = world_size - 1;
+	
+	
+	char * dirPrefix = "/mirror/local/vita/input/";
+    FILE * fp;
+    
+    News *news;
+	News Test;
+	int count = atoi(argv[1]);
+	//printf("Count %d",count);
+	//news = (News *)malloc(sizeof(News)*(count));
+	int loadBalance = count % repo_count;
+	int actual_count  =  count;
+	if (  loadBalance != 0) {
+		count = count + ( repo_count - loadBalance ); // make count multiple of repo_count 
+	}
+	
+	 
+	char *buffer = (char *)malloc(sizeof(char)*(count*630)); // 30 + 100 + 500
+	int p = 0;
+    for (int i = 1 ; i <= count ; i++ ) {
+    	if( i < actual_count ) {
+			char * line = NULL;
+	   	 	size_t len = 0;
+			ssize_t read;
+			char *filePath = (char *)malloc(sizeof(char)*200);
+			strcpy(filePath,dirPrefix);
+			char *arg = (char *)malloc(sizeof(char)*32);
+			snprintf(arg, 32, "%d", i);
+			strcat(filePath,arg);
+			//printf("So file path is : %s\n",filePath);
+		    fp = fopen(filePath, "r");
+			if (fp == NULL) {
+				exit(EXIT_FAILURE); 
+			}
+			//news[i] = (News *)malloc(sizeof(News));   
+			int j = 0 ;
+			while ((read = getline(&line, &len, fp)) != -1) {
+				//printf("Retrieved line of length %zu :\n", read);
+				//printf("%s", line);
+
+				if (j == 0) {
+				    //news[i]->timeStamp = (char *)malloc(sizeof(char)*read);
+				    //strncpy(news[i].timeStamp,line,read);
+				    //news[i].timeStamp[read] = '\0';
+					strncpy(&(buffer[p]),line,read);
+					if (read < 30) {
+						int k = p + read;
+						for (; k < 30 ; k++) {
+							buffer[k] = '\0';					
+						} 
+					} else {
+						buffer[p+29] = '\0';				
+					}
+				    j++;
+					p = p+ 30;
+				} else if ( j ==  1) {
+				    //news[i]->title = (char *)malloc(sizeof(char)*read);
+				    //strncpy(news[i].title,line,read);
+				    //news[i].title[read] = '\0';
+					strncpy(&(buffer[p]),line,read);
+					if (read < 100) {
+						int k = p + read;
+						for (; k < 100 ; k++) {
+							buffer[k] = '\0';					
+						} 
+					} else {
+						buffer[p+99] = '\0';				
+					}
+				    j++;
+					p = p+ 100;
+				} else {
+				   	//news[i]->details = (char *)malloc(sizeof(char)*read);
+				    //strncpy(news[i].details,line,read);
+				    //news[i].details[read] = '\0';
+					strncpy(&(buffer[p]),line,read);
+					if (read < 500) {
+						int k = p + read;
+						for (; k < 500 ; k++) {
+							buffer[k] = '\0';					
+						} 
+					} else {
+						buffer[p+499] = '\0';				
+					}
+				    j++;
+					p = p + 500;
+				    j = 0;
+				}  
+					
+			}
+			fclose(fp);
+			if (line)
+				free(line);
+		} else {
+		// just fill \0 characters 
+		int ite = p;
+		for ( ; ite < 630 ; ite++) {
+			buffer[ite];
+		}
+		p = p + 630;
+		}
+    }
+/*
+	int limit = count * 630 -1; 
+	for (int i = 0 ; i < limit; i++) {
+		printf("%c", buffer[i]);
+	} 
+	*/
+    //printf("Time Stamp : %s\n",news1.timeStamp);
+    //printf("Title : %s\n",news1.title);
+    //printf("Details : %s\n",news1.details);
+	/*
+   for (int i = 1 ; i <= count ; i++) {
+				printf("News item : %d \n", i);
+				printf("News TimeStamp: %s \n", news[i].timeStamp);
+				printf("News Title: %s \n", news[i].title);
+				printf("News Details: %s \n", news[i].details);
+	}
+	*/
+
+
+	/*
+	News *latestNews = findLatest(news, count);
+	printf("Latest News TimeStamp: %s \n", latestNews->timeStamp);
+	printf("Latest News Title: %s \n", latestNews->title);
+	printf("Latest News Details: %s \n", latestNews->details);
+	*/
+    //%a %b %e %T %Z %Y => Thu Mar  3 22:32:41 IST 2016
+    //struct tm time;
+    //strptime(news1.timeStamp,"%a %b %e %T %Z %Y",&time);
+    //time_t loctime = mktime(&time);
+    //printf ( "Current local time and date: %s", asctime (&time) );
+
+	
+   
+
+	//number of items inside structure Test
+	const int nitems = 3;
+
+	//count of item of each type inside Test in order
+	int blocklengths[3] = {1, 1, 1};
+
+	MPI_Datatype mpi_timestamp;
+	MPI_Datatype mpi_title;
+	MPI_Datatype mpi_details;
+
+	MPI_Type_contiguous(100,MPI_CHAR,&mpi_title);
+	MPI_Type_commit(&mpi_title);
+
+	MPI_Type_contiguous(30,MPI_CHAR,&mpi_timestamp);
+	MPI_Type_commit(&mpi_timestamp);
+
+	MPI_Type_contiguous(500,MPI_CHAR,&mpi_details);
+	MPI_Type_commit(&mpi_details);
+
+
+	//data types present inside Test in order
+	MPI_Datatype types[3] = {mpi_timestamp, mpi_title, mpi_details};
+
+	//name of derived data type
+	MPI_Datatype mpi_test_type;
+
+	//array to store starting address of each item inside Test
+	MPI_Aint offsets[3];
+
+	//offset of each item in Test with respect to base address of Test
+	offsets[0] = offsetof(News, timeStamp);
+	offsets[1] = offsetof(News, title);
+	offsets[2] = offsetof(News, details);
+
+	//create the new derived data type
+	MPI_Type_create_struct(nitems, blocklengths, offsets, types, &mpi_test_type);
+
+	//commit the new data type
+	MPI_Type_commit(&mpi_test_type);
+
+	//get rank of current process
+	//MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+
+	//Code for the creation of REPORTER COMM goes here.
+	
+	process_rank = 	(int*)malloc(sizeof(int) * (world_size - 1));
+
+	for(int i = 1 ; i < world_size ; i++){
+		process_rank[i] = i;
+	}
+
+
+	MPI_Comm_dup(MPI_COMM_WORLD, &world_comm);
+	MPI_Comm_group(world_comm, &world_group);
+	MPI_Group_incl(world_group, (world_size - 1), process_rank, &new_group);
+	MPI_Comm_create(world_comm, new_group, &rep_comm);
+
+	//printf("%d\n",error);
+
+	//Get the size of the Comm REPORTER.
+
+	if(world_rank == 0){
+		//Do editor's task
+	}else{
+		MPI_Comm_size(rep_comm, &rep_size);
+		MPI_Comm_rank(rep_comm, &rep_rank);
+
+
+	/*
+	for (int i = 1 ; i <= count ; i++) {
+				printf("News item : %d \n", i);
+				printf("News TimeStamp: %s \n", news[i].timeStamp);
+				printf("News Title: %s \n", news[i].title);
+				printf("News Details: %s \n", news[i].details);
+	}
+	MPI_Barrier(MPI_COMM_WORLD);
+	/*
+	if(rank == 1) {
+		// News send;
+		// News.one = 1;
+		// News.two = 2.0;
+		// strncpy(send.news,"This is simple news.",sizeof(send.news));
+		const int dest = 2;
+		MPI_Send(news[1], 1, mpi_test_type, dest, tag, MPI_COMM_WORLD);
+		printf("\nRank %d sending \n %s  \n %s \n %s\n", rank, news[1]->timeStamp, news[1]->title, news[1]->details);
+	}		
+	if(rank == 2) {
+		MPI_Status status;
+		const int src = 1;
+		News recv;
+		MPI_Recv(&recv, 1, mpi_test_type, src, tag, MPI_COMM_WORLD, &status);
+		printf("\nRank %d received \n %s \n %s \n %s \n", rank, recv.timeStamp,recv.title,recv.details);
+	}
+	
+	*/
+	//News *recvNews = (News *)malloc(sizeof(News )*(count));
+	char *recvBuffer = (char *)malloc(sizeof(char) * (count*630));
+	int proc_size = 630 * ( count / repo_count ) ; // this should always be divisible
+	  
+	
+	int status = MPI_Alltoall(buffer,proc_size,MPI_CHAR,recvBuffer,proc_size,MPI_CHAR,rep_comm);	
+	
+	if(status != 0) {
+		printf("MPI_Alltoall failed with status %d\n", status);
+		exit(EXIT_FAILURE);	
+	}	
+	MPI_Barrier(rep_comm);
+	printf(" \n \n \n");
+	/*
+	if (rank == 1) {
+	int limit = count * 630 -1; 
+	for (int i = 0 ; i < limit; i++) {
+		printf("%c", recvBuffer[i]);
+	} 
+		
+	} 
+*/
+	//MPI_Barrier(MPI_COMM_WORLD);
+	News** newsArray = getNewsArray(recvBuffer,count,repo_count,proc_size);
+	
+
+	for( int my_rank = 0; my_rank < repo_count; my_rank++) {
+		if( my_rank == rep_rank ) {
+			/*for (int i = 0 ; i < size ; i++) {
+						printf("News item : %d rank %d\n", i , rank);
+						printf("News TimeStamp: %s rank %d\n", newsArray[i].timeStamp,rank);
+						printf("News Title: %s rank %d\n", newsArray[i].title,rank);
+						printf("News Details: %s rank %d \n", newsArray[i].details,rank);
+			} */
+			News latestNews = findLatest(newsArray[0],repo_count);
+			printf("Latest news : \n");
+			printf("News TimeStamp: %s\n", latestNews.timeStamp);
+			printf("News Title: %s\n", latestNews.title);
+			printf("News Details: %s\n", latestNews.details);
+		}
+	}
+	
+	/*
+	else if(rank == 1) {
+	for (int i = 1 ; i <= size ; i++) {
+				printf("News item : %d rank %d\n", i , rank);
+				printf("News TimeStamp: %s rank %d\n", recvNews[i].timeStamp,rank);
+				printf("News Title: %s rank %d\n", recvNews[i].title,rank);
+				printf("News Details: %s rank %d \n", recvNews[i].details,rank);
+	}
+	}
+	*/
+	//dumpRecvNews(,recvNews,size);	
+
+	
+	//free the derived data type
+	
+
+	}
+
+
+	
+
+	
+	MPI_Type_free(&mpi_test_type);
+	MPI_Finalize();
+	
+	
+
+    exit(EXIT_SUCCESS);
+}
