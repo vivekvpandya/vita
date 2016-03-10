@@ -314,8 +314,8 @@ int main(int argc, char **argv) {
 	if(world_rank == 0){
 		//Do editor's task
 	}else{
-		MPI_Comm_size(rep_comm, &rep_size);
-		MPI_Comm_rank(rep_comm, &rep_rank);
+		//MPI_Comm_size(rep_comm, &rep_size);
+		//MPI_Comm_rank(rep_comm, &rep_rank);
 
 
 	/*
