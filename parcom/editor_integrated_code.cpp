@@ -1,4 +1,3 @@
-#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -6,12 +5,18 @@
 #include <mpi.h>
 #include <stddef.h>
 #include <unistd.h>
+#include <iostream>
+#include <map>
+#include <algorithm>
 
 typedef struct news {
     char timeStamp[30];
     char title[100];
     char details[500];
 } News ;
+
+
+using namespace std;
 
 
 News** getNewsArray(char *recvBuffer, int size, int repo_count, int proc_size) {
@@ -101,6 +106,39 @@ void dumpRecvNews( int rank, News *news, int size) {
 	}
 }
 
+void insert_news(map<string,string> &news,News rnews){
+	string headline = rnews.title;
+	string details = rnews.details;
+
+	map<string,string>::iterator it = news.find(headline);
+
+	if(it != news.end()){
+		string foundDetails = it->second;
+		foundDetails+=details;
+		it->second = foundDetails;
+	} else{
+		news.insert(pair<string,string>(headline,details));
+	}
+
+}
+
+void print_news_items(map<string,string> &news){
+	for_each(news.begin(), news.end(), [](pair<string,string> p){ 
+		cout << "Title: " << p.first << endl << "Report: " << p.second << endl << endl;
+	 });
+}
+
+
+void print_news(News news){
+	printf("New:=>\n");
+	printf("News TimeStamp: %s\n", news.timeStamp);
+	printf("News Title: %s\n", news.title);
+	printf("News Details: %s\n", news.details);
+}
+
+
+
+
 int main(int argc, char **argv) {	
 	const int tag = 0;
 	int world_size, world_rank;
@@ -131,6 +169,9 @@ int main(int argc, char **argv) {
 	char * dirPrefix = "/mirror/local/vita/input/";
     FILE * fp;
     
+    printf("Your code reached till reading file\n");
+
+
     News *news;
 	News Test;
 	int count = atoi(argv[1]);
@@ -227,7 +268,10 @@ int main(int argc, char **argv) {
 		p = p + 630;
 		}
     }
+
+    printf("Reading of file complete\n");
 /*
+
 	int limit = count * 630 -1; 
 	for (int i = 0 ; i < limit; i++) {
 		printf("%c", buffer[i]);
@@ -312,6 +356,11 @@ int main(int argc, char **argv) {
 	MPI_Comm_group(world_comm, &world_group);
 	MPI_Group_incl(world_group, (world_size - 1), process_rank, &new_group);
 	MPI_Comm_create(world_comm, new_group, &rep_comm);
+	char processor[MPI_MAX_PROCESSOR_NAME];
+	int length;
+	MPI_Get_processor_name(processor,&length);
+
+	MPI_Status status;
 
 	
 	//if(rep_comm == MPI_COMM_NULL){
@@ -323,14 +372,30 @@ int main(int argc, char **argv) {
 
 	if(world_rank == 0){
 		//Do editor's task
-		printf("%s\n","Waiting for the reporters to send a valid and latest news\n" );
+		printf("Your code reached till editor\n");
+		int recv_flag = 0;
+		News recv_news;
+		printf("Editor is running on %s\n",processor);
+		
+		printf("Waiting for the message to arrive.\n");
+		
+		while(!recv_flag){
+			MPI_Iprobe(MPI_ANY_SOURCE,0,MPI_COMM_WORLD, &recv_flag, &status);
+		}
+		
+		MPI_Recv(&recv_news,1,mpi_test_type,MPI_ANY_SOURCE,0,MPI_COMM_WORLD,&status);
+
+		print_news(recv_news);
+		
+		printf("Message arrived successfully %d\n",recv_flag);
+
 	}else {
 		
 		
 
 		MPI_Comm_size(rep_comm, &rep_size);
 		MPI_Comm_rank(rep_comm, &rep_rank);
-
+		printf("Your code reached till rep_rank\n");
 
 	/*
 	for (int i = 1 ; i <= count ; i++) {
@@ -394,10 +459,11 @@ int main(int argc, char **argv) {
 						printf("News Details: %s rank %d \n", newsArray[i].details,rank);
 			} */
 			News latestNews = findLatest(newsArray[0],repo_count);
-			printf("Latest news : \n");
-			printf("News TimeStamp: %s\n", latestNews.timeStamp);
-			printf("News Title: %s\n", latestNews.title);
-			printf("News Details: %s\n", latestNews.details);
+			MPI_Send(&latestNews,1,mpi_test_type,0,0,MPI_COMM_WORLD);
+
+			printf("Latest News:=>\n");
+			print_news(latestNews);
+			
 		}
 	}
 	

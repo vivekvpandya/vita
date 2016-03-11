@@ -362,8 +362,11 @@ int main(int argc, char **argv) {
 	//News *recvNews = (News *)malloc(sizeof(News )*(count));
 	char *recvBuffer = (char *)malloc(sizeof(char) * (count*630));
 	int proc_size = 630 * ( count / repo_count ) ; // this should always be divisible
-	  
-	
+	if ( rep_rank == 1) {
+	printf("Repo count : %d \n", repo_count);
+	printf("Count : %d \n", count);
+  	printf("Proc_size : %d \n", proc_size ); 
+	}
 	int status = MPI_Alltoall(buffer,proc_size,MPI_CHAR,recvBuffer,proc_size,MPI_CHAR,rep_comm);	
 	
 	if(status != 0) {
@@ -386,6 +389,7 @@ int main(int argc, char **argv) {
 	
 
 	for( int my_rank = 0; my_rank < repo_count; my_rank++) {
+		printf("Proc_size : %d \n",proc_size);
 		if( my_rank == rep_rank ) {
 			/*for (int i = 0 ; i < size ; i++) {
 						printf("News item : %d rank %d\n", i , rank);
@@ -393,11 +397,14 @@ int main(int argc, char **argv) {
 						printf("News Title: %s rank %d\n", newsArray[i].title,rank);
 						printf("News Details: %s rank %d \n", newsArray[i].details,rank);
 			} */
-			News latestNews = findLatest(newsArray[0],repo_count);
-			printf("Latest news : \n");
-			printf("News TimeStamp: %s\n", latestNews.timeStamp);
-			printf("News Title: %s\n", latestNews.title);
-			printf("News Details: %s\n", latestNews.details);
+			int news_item = 0;
+			//for ( int news_item = 0 ; news_item < proc_size ; news_item++ ) {   
+					News latestNews = findLatest(newsArray[0],repo_count);
+					printf("Latest news %d : on node %d \n ",news_item, my_rank);
+					printf("News TimeStamp: %s\n", latestNews.timeStamp);
+					printf("News Title: %s\n", latestNews.title);
+					printf("News Details: %s\n", latestNews.details);
+			//}
 		}
 	}
 	
