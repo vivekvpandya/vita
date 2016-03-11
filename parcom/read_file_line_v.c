@@ -26,52 +26,58 @@ News** getNewsArray(char *recvBuffer, int size, int repo_count, int proc_count, 
 	int t = 0;
 	int p = 0;
 	for ( ; t < proc_count;  t++) {
-		newsArray[t] = (News *)malloc(sizeof(News) * repo_count);
-		//readOn = 1;
-		
-		int j = 0;
-		int s = 0;
-		for (; s <  repo_count ; s++) { 
-			if(rank ==1)
-			printf("The News Item : %d \n",s);
-			int temp = p + s * (proc_size);
-			readOn = 1;
-			printf("\n");
-			while(readOn) {
-			
-				if (j == 0) {
-		 			for( int k = 0; k <29 ; k++) {
-					if(rank == 1)
-						printf("%c",recvBuffer[temp + k]);
-					newsArray[t][s].timeStamp[k] = recvBuffer[temp + k];			
-					}
-					newsArray[t][s].timeStamp[29] = '\0';
-					temp = temp + 30;
-					j++;		
-				} else if (j == 1) {
-					for( int k = 0; k <99 ; k++) {
-					if(rank == 1)
-						printf("%c",recvBuffer[temp + k]);
-					newsArray[t][s].title[k] = recvBuffer[temp + k];			
-					}
-					newsArray[t][s].title[99] = '\0';
-					temp = temp + 100;
-					j++;
-				} else {
-					for( int k = 0; k <499 ; k++) {
-					if(rank == 1)
-						printf("%c",recvBuffer[temp + k]);
-					newsArray[t][s].details[k] = recvBuffer[temp + k];			
-					}
-					newsArray[t][s].details[499] = '\0';
-					temp = temp + 500;
-					j = 0;
-					readOn = 0;
-				}
-			}
+		if (recvBuffer[p] == '\0' && recvBuffer[p+1] ==  '\0') {
+			// skip the extra null entries
+			newsArray[t] = NULL;		
+		} else {
+			newsArray[t] = (News *)malloc(sizeof(News) * repo_count);
+			int j = 0;
+			int s = 0;
+			for (; s <  repo_count ; s++) { 
+				if(rank ==1)
+				printf("The News Item : %d \n",s);
+				int temp = p + s * (proc_size);
+				readOn = 1;
+				printf("\n");
 				
-		}
-		p = p + 630;
+				while(readOn) {
+			
+					if (j == 0) {
+			 			for( int k = 0; k <29 ; k++) {
+						if(rank == 1)
+							printf("%c",recvBuffer[temp + k]);
+						newsArray[t][s].timeStamp[k] = recvBuffer[temp + k];			
+						}
+						newsArray[t][s].timeStamp[29] = '\0';
+						temp = temp + 30;
+						j++;		
+					} else if (j == 1) {
+						for( int k = 0; k <99 ; k++) {
+						if(rank == 1)
+							printf("%c",recvBuffer[temp + k]);
+						newsArray[t][s].title[k] = recvBuffer[temp + k];			
+						}
+						newsArray[t][s].title[99] = '\0';
+						temp = temp + 100;
+						j++;
+					} else {
+						for( int k = 0; k <499 ; k++) {
+						if(rank == 1)
+							printf("%c",recvBuffer[temp + k]);
+						newsArray[t][s].details[k] = recvBuffer[temp + k];			
+						}
+						newsArray[t][s].details[499] = '\0';
+						temp = temp + 500;
+						j = 0;
+						readOn = 0;
+					}
+				}
+				
+			}
+			p = p + 630;
+		}//readOn = 1;
+		
+		
 	}
 		
 		
@@ -83,6 +89,7 @@ News** getNewsArray(char *recvBuffer, int size, int repo_count, int proc_count, 
 News findLatest(News *news, int size) { 
 
     //printf( "Current local time and date: %s", asctime(&time) );
+	
 	News latest = news[0];
 	for ( int i = 1; i < size ; i++ ) {
 		struct tm time1, time2;
@@ -456,12 +463,14 @@ int main(int argc, char **argv) {
 		//printf("Proc_count : %d \n",proc_count);
 		if( my_rank == rep_rank ) {
 			int news_item = 0;
-			for ( int news_item = 0 ; news_item < proc_count ; news_item++ ) {   
-					News latestNews = findLatest(newsArray[news_item],repo_count);
-					printf("Latest news %d : on node %d \n ",news_item, my_rank);
-					printf("News TimeStamp: %s\n", latestNews.timeStamp);
-					printf("News Title: %s\n", latestNews.title);
-					printf("News Details: %s\n", latestNews.details);
+			for ( int news_item = 0 ; news_item < proc_count ; news_item++ ) {  
+					if (newsArray[news_item] != NULL){ 
+						News latestNews = findLatest(newsArray[news_item],repo_count);
+						printf("Latest news %d : on node %d \n ",news_item, my_rank);
+						printf("News TimeStamp: %s\n", latestNews.timeStamp);
+						printf("News Title: %s\n", latestNews.title);
+						printf("News Details: %s\n", latestNews.details);
+					}
 			}
 
 		}
