@@ -14,49 +14,64 @@ typedef struct news {
 } News ;
 
 
-News** getNewsArray(char *recvBuffer, int size, int repo_count, int proc_size) {
-	News **newsArray = (News **)malloc(sizeof(News *) * proc_size);
-	
-	//int readOn = 1;
+News** getNewsArray(char *recvBuffer, int size, int repo_count, int proc_count, int rank) {
+	if (rank == 1) {
+		printf("Size : %d \n", size);
+		printf("Repo_count : %d \n", repo_count);
+		printf("Proc_count : %d \n", proc_count);
+	}	
+	News **newsArray = (News **)malloc(sizeof(News *) * proc_count);
+	int proc_size = 630 * proc_count;
+	int readOn = 1;
 	int t = 0;
-	
-	for ( ; t < proc_size;  t++) {
+	int p = 0;
+	for ( ; t < proc_count;  t++) {
 		newsArray[t] = (News *)malloc(sizeof(News) * repo_count);
 		//readOn = 1;
-		int p = 0;
+		
 		int j = 0;
 		int s = 0;
 		for (; s <  repo_count ; s++) { 
-			//while(readOn) {
+			if(rank ==1)
+			printf("The News Item : %d \n",s);
+			int temp = p + s * (proc_size);
+			readOn = 1;
+			printf("\n");
+			while(readOn) {
 			
 				if (j == 0) {
 		 			for( int k = 0; k <29 ; k++) {
-					//printf("%c",recvBuffer[p + k]);
-					newsArray[t][s].timeStamp[k] = recvBuffer[p + k];			
+					if(rank == 1)
+						printf("%c",recvBuffer[temp + k]);
+					newsArray[t][s].timeStamp[k] = recvBuffer[temp + k];			
 					}
 					newsArray[t][s].timeStamp[29] = '\0';
-					p = p + 30;
+					temp = temp + 30;
 					j++;		
 				} else if (j == 1) {
 					for( int k = 0; k <99 ; k++) {
-					//printf("%c",recvBuffer[p + k]);
-					newsArray[t][s].title[k] = recvBuffer[p + k];			
+					if(rank == 1)
+						printf("%c",recvBuffer[temp + k]);
+					newsArray[t][s].title[k] = recvBuffer[temp + k];			
 					}
 					newsArray[t][s].title[99] = '\0';
-					p = p + 100;
+					temp = temp + 100;
 					j++;
 				} else {
 					for( int k = 0; k <499 ; k++) {
-					//printf("%c",recvBuffer[p + k]);
-					newsArray[t][s].details[k] = recvBuffer[p + k];			
+					if(rank == 1)
+						printf("%c",recvBuffer[temp + k]);
+					newsArray[t][s].details[k] = recvBuffer[temp + k];			
 					}
 					newsArray[t][s].details[499] = '\0';
-					p = p + 500;
+					temp = temp + 500;
 					j = 0;
-					//readOn = 0;
+					readOn = 0;
 				}
-			//}	
+			}
+				
 		}
+		p = p + 630;
 	}
 		
 		
@@ -118,7 +133,7 @@ int main(int argc, char **argv) {
 	MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
 	int repo_count = world_size - 1;
 
-	printf("Rank %d says World Size is %d\n", world_rank,world_size);
+	//printf("Rank %d says World Size is %d\n", world_rank,world_size);
 
 	process_rank = 	(int*)malloc(sizeof(int) * (world_size - 1));
 
@@ -128,111 +143,8 @@ int main(int argc, char **argv) {
 
 		
 	
-	char * dirPrefix = "/mirror/local/vita/input/";
-    FILE * fp;
-    
-    News *news;
-	News Test;
-	int count = atoi(argv[1]);
-	//printf("Count %d",count);
-	//news = (News *)malloc(sizeof(News)*(count));
-	int loadBalance = count % repo_count;
-	int actual_count  =  count;
-	if (  loadBalance != 0) {
-		count = count + ( repo_count - loadBalance ); // make count multiple of repo_count 
-	}
 	
-	 
-	char *buffer = (char *)malloc(sizeof(char)*(count*630)); // 30 + 100 + 500
-	int p = 0;
-    for (int i = 1 ; i <= count ; i++ ) {
-    	if( i < actual_count ) {
-			char * line = NULL;
-	   	 	size_t len = 0;
-			ssize_t read;
-			char *filePath = (char *)malloc(sizeof(char)*200);
-			strcpy(filePath,dirPrefix);
-			char *arg = (char *)malloc(sizeof(char)*32);
-			snprintf(arg, 32, "%d", i);
-			strcat(filePath,arg);
-			//printf("So file path is : %s\n",filePath);
-		    fp = fopen(filePath, "r");
-			if (fp == NULL) {
-				exit(EXIT_FAILURE); 
-			}
-			//news[i] = (News *)malloc(sizeof(News));   
-			int j = 0 ;
-			while ((read = getline(&line, &len, fp)) != -1) {
-				//printf("Retrieved line of length %zu :\n", read);
-				//printf("%s", line);
-
-				if (j == 0) {
-				    //news[i]->timeStamp = (char *)malloc(sizeof(char)*read);
-				    //strncpy(news[i].timeStamp,line,read);
-				    //news[i].timeStamp[read] = '\0';
-					strncpy(&(buffer[p]),line,read);
-					if (read < 30) {
-						int k = p + read;
-						for (; k < 30 ; k++) {
-							buffer[k] = '\0';					
-						} 
-					} else {
-						buffer[p+29] = '\0';				
-					}
-				    j++;
-					p = p+ 30;
-				} else if ( j ==  1) {
-				    //news[i]->title = (char *)malloc(sizeof(char)*read);
-				    //strncpy(news[i].title,line,read);
-				    //news[i].title[read] = '\0';
-					strncpy(&(buffer[p]),line,read);
-					if (read < 100) {
-						int k = p + read;
-						for (; k < 100 ; k++) {
-							buffer[k] = '\0';					
-						} 
-					} else {
-						buffer[p+99] = '\0';				
-					}
-				    j++;
-					p = p+ 100;
-				} else {
-				   	//news[i]->details = (char *)malloc(sizeof(char)*read);
-				    //strncpy(news[i].details,line,read);
-				    //news[i].details[read] = '\0';
-					strncpy(&(buffer[p]),line,read);
-					if (read < 500) {
-						int k = p + read;
-						for (; k < 500 ; k++) {
-							buffer[k] = '\0';					
-						} 
-					} else {
-						buffer[p+499] = '\0';				
-					}
-				    j++;
-					p = p + 500;
-				    j = 0;
-				}  
-					
-			}
-			fclose(fp);
-			if (line)
-				free(line);
-		} else {
-		// just fill \0 characters 
-		int ite = p;
-		for ( ; ite < 630 ; ite++) {
-			buffer[ite];
-		}
-		p = p + 630;
-		}
-    }
-/*
-	int limit = count * 630 -1; 
-	for (int i = 0 ; i < limit; i++) {
-		printf("%c", buffer[i]);
-	} 
-	*/
+	
     //printf("Time Stamp : %s\n",news1.timeStamp);
     //printf("Title : %s\n",news1.title);
     //printf("Details : %s\n",news1.details);
@@ -323,15 +235,120 @@ int main(int argc, char **argv) {
 
 	if(world_rank == 0){
 		//Do editor's task
-		printf("%s\n","Waiting for the reporters to send a valid and latest news\n" );
+		//printf("%s\n","Waiting for the reporters to send a valid and latest news\n" );
 	}else {
 		
 		
 
 		MPI_Comm_size(rep_comm, &rep_size);
 		MPI_Comm_rank(rep_comm, &rep_rank);
+		
+		char * dirPrefix = "/mirror/local/vita/input/";
+    FILE * fp;
+    
+    News *news;
+	News Test;
+	int count = atoi(argv[1]);
+	//printf("Count %d",count);
+	//news = (News *)malloc(sizeof(News)*(count));
+	int loadBalance = count % repo_count;
+	int actual_count  =  count;
+	if (  loadBalance != 0) {
+		count = count + ( repo_count - loadBalance ); // make count multiple of repo_count 
+	}
+	
+	 
+	char *buffer = (char *)malloc(sizeof(char)*(count*630)); // 30 + 100 + 500
+	int p = 0;
+    for (int i = 1 ; i <= count ; i++ ) {
+    	if( i <= actual_count ) {
+			char * line = NULL;
+	   	 	size_t len = 0;
+			ssize_t read;
+			char *filePath = (char *)malloc(sizeof(char)*200);
+			strcpy(filePath,dirPrefix);
+			char *arg = (char *)malloc(sizeof(char)*32);
+			snprintf(arg, 32, "%d", i);
+			strcat(filePath,arg);
+			//printf("So file path is : %s\n",filePath);
+		    fp = fopen(filePath, "r");
+			if (fp == NULL) {
+				exit(EXIT_FAILURE); 
+			}
+			//news[i] = (News *)malloc(sizeof(News));   
+			int j = 0 ;
+			while ((read = getline(&line, &len, fp)) != -1) {
+				//printf("Retrieved line of length %zu :\n", read);
+				//printf("%s", line);
 
-
+				if (j == 0) {
+				    //news[i]->timeStamp = (char *)malloc(sizeof(char)*read);
+				    //strncpy(news[i].timeStamp,line,read);
+				    //news[i].timeStamp[read] = '\0';
+					strncpy(&(buffer[p]),line,read);
+					if (read < 30) {
+						int k = p + read;
+						for (; k < 30 ; k++) {
+							buffer[k] = '\0';					
+						} 
+					} else {
+						buffer[p+29] = '\0';				
+					}
+				    j++;
+					p = p+ 30;
+				} else if ( j ==  1) {
+				    //news[i]->title = (char *)malloc(sizeof(char)*read);
+				    //strncpy(news[i].title,line,read);
+				    //news[i].title[read] = '\0';
+					strncpy(&(buffer[p]),line,read);
+					if (read < 100) {
+						int k = p + read;
+						for (; k < 100 ; k++) {
+							buffer[k] = '\0';					
+						} 
+					} else {
+						buffer[p+99] = '\0';				
+					}
+				    j++;
+					p = p+ 100;
+				} else {
+				   	//news[i]->details = (char *)malloc(sizeof(char)*read);
+				    //strncpy(news[i].details,line,read);
+				    //news[i].details[read] = '\0';
+					strncpy(&(buffer[p]),line,read);
+					if (read < 500) {
+						int k = p + read;
+						for (; k < 500 ; k++) {
+							buffer[k] = '\0';					
+						} 
+					} else {
+						buffer[p+499] = '\0';				
+					}
+				    j++;
+					p = p + 500;
+				    j = 0;
+				}  
+					
+			}
+			fclose(fp);
+			if (line)
+				free(line);
+		} else {
+		// just fill \0 characters 
+		int ite = p;
+		for ( ; ite < 630 ; ite++) {
+			buffer[ite];
+		}
+		p = p + 630;
+		}
+    }
+	
+	if (rep_rank == 5) {
+		int limit = count * 630 -1; 
+		for (int i = 0 ; i < limit; i++) {
+			printf("%c", buffer[i]);
+		}
+	}
 	/*
 	for (int i = 1 ; i <= count ; i++) {
 				printf("News item : %d \n", i);
@@ -361,12 +378,15 @@ int main(int argc, char **argv) {
 	*/
 	//News *recvNews = (News *)malloc(sizeof(News )*(count));
 	char *recvBuffer = (char *)malloc(sizeof(char) * (count*630));
-	int proc_size = 630 * ( count / repo_count ) ; // this should always be divisible
+	int proc_count = count / repo_count;
+	int proc_size = 630 * ( proc_count ) ; // this should always be divisible
+	/*
 	if ( rep_rank == 1) {
-	printf("Repo count : %d \n", repo_count);
-	printf("Count : %d \n", count);
-  	printf("Proc_size : %d \n", proc_size ); 
+		printf("Repo count : %d \n", repo_count);
+		printf("Count : %d \n", count);
+  		printf("Proc_size : %d \n", proc_size ); 
 	}
+	*/
 	int status = MPI_Alltoall(buffer,proc_size,MPI_CHAR,recvBuffer,proc_size,MPI_CHAR,rep_comm);	
 	
 	if(status != 0) {
@@ -385,26 +405,65 @@ int main(int argc, char **argv) {
 	} 
 */
 	//MPI_Barrier(MPI_COMM_WORLD);
-	News** newsArray = getNewsArray(recvBuffer,count,repo_count,proc_size);
+	News** newsArray = getNewsArray(recvBuffer,count,repo_count,proc_count,9999);
 	
+	if (rep_rank == 0) {
+		/*
+		for( int n_items = 0; n_items < proc_count ;  n_items++) {
+			printf("News item : %d \n",n_items);
+			for ( int r_count = 0; r_count < repo_count; r_count++) {
+				printf("Time stamp : %s \n", newsArray[n_items][r_count].timeStamp);
+				printf("Title : %s \n", newsArray[n_items][r_count].title);
+				printf("Details : %s \n", newsArray[n_items][r_count].details);
+			}
+		} */
+		/*
+		int in = 0;
+		for( int n_items = 0; n_items < proc_count ;  n_items++) {
+			
+			for ( int r_count = 0; r_count < repo_count; r_count++) {
+				printf("\n");
+				for (int i = 0; i < 29; i++) {
+						printf("%c",recvBuffer[in+i]);			
+				}
+				in = in + 29;
+				for (int i = 0; i < 99; i++) {
+					printf("%c",recvBuffer[in+i]);
+				}
+				in = in + 99;
+				for (int i = 0; i < 499; i++) {
+					printf("%c",recvBuffer[in+i]);
+				}
+				in = in + 499;
+			}
+		} */
+		/*	
+		for( int n_items = 0; n_items < proc_count ;  n_items++) {
+
+			for ( int r_count = 0; r_count < repo_count; r_count++) {
+				printf("\n");
+				printf("Timestamp : %s \n", newsArray[n_items][r_count].timeStamp);
+				printf("Title : %s \n", newsArray[n_items][r_count].title);
+				printf("Details : %s \n", newsArray[n_items][r_count].details);
+			}
+		}
+	*/
+	}
+ 
+
 
 	for( int my_rank = 0; my_rank < repo_count; my_rank++) {
-		printf("Proc_size : %d \n",proc_size);
+		//printf("Proc_count : %d \n",proc_count);
 		if( my_rank == rep_rank ) {
-			/*for (int i = 0 ; i < size ; i++) {
-						printf("News item : %d rank %d\n", i , rank);
-						printf("News TimeStamp: %s rank %d\n", newsArray[i].timeStamp,rank);
-						printf("News Title: %s rank %d\n", newsArray[i].title,rank);
-						printf("News Details: %s rank %d \n", newsArray[i].details,rank);
-			} */
 			int news_item = 0;
-			//for ( int news_item = 0 ; news_item < proc_size ; news_item++ ) {   
-					News latestNews = findLatest(newsArray[0],repo_count);
+			for ( int news_item = 0 ; news_item < proc_count ; news_item++ ) {   
+					News latestNews = findLatest(newsArray[news_item],repo_count);
 					printf("Latest news %d : on node %d \n ",news_item, my_rank);
 					printf("News TimeStamp: %s\n", latestNews.timeStamp);
 					printf("News Title: %s\n", latestNews.title);
 					printf("News Details: %s\n", latestNews.details);
-			//}
+			}
+
 		}
 	}
 	
